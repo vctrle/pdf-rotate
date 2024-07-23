@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Rotation Tool</title>
+    <style>
+        #canvas-container {
+            text-align: center;
+            margin: 20px;
+        }
+    </style>
+    <!-- Include PDF.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <!-- Include pdf-lib library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.16.0/pdf-lib.min.js"></script>
+</head>
+<body>
+    <h1>PDF Rotation Tool</h1>
+    <input type="file" id="pdf-upload" accept="application/pdf">
+    <div id="canvas-container">
+        <canvas id="pdf-canvas"></canvas>
+    </div>
+    <button id="rotate-ccw">Rotate Counterclockwise</button>
+    <button id="rotate-cw">Rotate Clockwise</button>
+    <button id="download">Download Rotated PDF</button>
+
+    <script>
+	
+document.getElementById('pdf-upload').addEventListener('change', handleFileUpload);
+document.getElementById('rotate-ccw').addEventListener('click', () => rotatePDF(-90));
+document.getElementById('rotate-cw').addEventListener('click', () => rotatePDF(90));
+document.getElementById('download').addEventListener('click', downloadRotatedPDF);
+
+let pdfDoc = null;
+let currentPage = 1;
+let rotation = 0;
+let pdfBytes = null;
+
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (file.type !== 'application/pdf') {
+        alert('Please upload a PDF file.');
+        return;
+    }
+
+    const fileReader = new FileReader();
+    fileReader.onload = function() {
+        pdfBytes = new Uint8Array(this.result);
+        loadPDF(pdfBytes);
+    };
+    fileReader.readAsArrayBuffer(file);
+}
+
+function loadPDF(data) {
+    const loadingTask = pdfjsLib.getDocument({ data: data });
+    loadingTask.promise.then(function(pdf) {
+        pdfDoc = pdf;
+        displayPage(currentPage);
+    }).catch(function(error) {
+        console.error(error);
+        alert('Error loading PDF');
+    });
+}
+
+function displayPage(pageNum) {
+    pdfDoc.getPage(pageNum).then(function(page) {
+        const viewport = page.getViewport({ scale: 1, rotation: rotation });
+        const canvas = document.getElementById('pdf-canvas');
+        const context = canvas.getContext('2d');
+
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+        };
+        page.render(renderContext);
+    }).catch(function(error) {
+        console.error(error);
+        alert('Error displaying page');
+    });
+}
+
+function rotatePDF(angle) {
+    rotation = (rotation + angle + 360) % 360;
+    displayPage(currentPage);
+}
+
+async function downloadRotatedPDF() {
+    const existingPdfBytes = pdfBytes;
+    const pdfDoc = await PDFLib.PDFDocument.load(existingPdfBytes);
+
+    const pages = pdfDoc.getPages();
+    pages.forEach((page) => {
+        page.setRotation(PDFLib.degrees(rotation));
+    });
+
+    const pdfBytesRotated = await pdfDoc.save();
+    const file = document.getElementById('pdf-upload').files[0];
+    const filename = file.name.replace('.pdf', '_rotated.pdf');
+
+    const blob = new Blob([pdfBytesRotated], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+}
+	
+	
+	</script>
+</body>
+</html>
